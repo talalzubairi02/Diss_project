@@ -15,6 +15,7 @@ SCORE_BAND_DESCRIPTIONS = {
 LOCAL_MODEL_NAME = "microsoft/Phi-3-mini-4k-instruct"  
 _model_cache = {}  
 
+
 def _get_local_model():
     if "model" not in _model_cache:
         print(f"Loading local model {LOCAL_MODEL_NAME} (first call only, may take a minute)...")
@@ -35,13 +36,16 @@ def call_llm(prompt: str, max_tokens: int = 400) -> str:
     model, tokenizer, device = _get_local_model()
 
     messages = [{"role": "user", "content": prompt}]
-    input_ids = tokenizer.apply_chat_template(
-        messages, add_generation_prompt=True, return_tensors="pt"
+    encoded = tokenizer.apply_chat_template(
+        messages, add_generation_prompt=True, return_tensors="pt", return_dict=True,
     ).to(device)
+    input_ids = encoded["input_ids"]
+    attention_mask = encoded["attention_mask"]
 
     with torch.no_grad():
         output_ids = model.generate(
-            input_ids,
+            input_ids=input_ids,
+            attention_mask=attention_mask,
             max_new_tokens=max_tokens,
             do_sample=True,
             temperature=0.7,
@@ -87,6 +91,7 @@ Requirements:
     return call_llm(prompt)
 
 # Condition 2: raw LLM baseline
+
 
 def raw_llm_feedback(essay_text: str) -> str:
     prompt = f"""You are giving formative feedback to a student on their persuasive essay.
