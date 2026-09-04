@@ -1,6 +1,7 @@
 import argparse
 
 import numpy as np
+import pandas as pd
 import torch
 from sklearn.metrics import cohen_kappa_score, classification_report
 from torch.utils.data import Dataset
@@ -13,8 +14,8 @@ from transformers import (
 
 from Data import load_persuade
 
-MODEL_NAME = "roberta-base" 
-NUM_SCORE_LEVELS = 6 
+MODEL_NAME = "roberta-base"  
+NUM_SCORE_LEVELS = 6  
 DEMOGRAPHIC_COLUMNS = ["gender", "ell_status", "race_ethnicity", "economically_disadvantaged", "student_disability_status"]
 
 HELD_OUT_TEST_PROMPTS = [
@@ -25,6 +26,7 @@ HELD_OUT_TEST_PROMPTS = [
 
 
 class EssayScoreDataset(Dataset):
+
     def __init__(self, texts, labels, tokenizer, max_length=256):
         self.texts = list(texts)
         self.labels = list(labels)
@@ -71,15 +73,16 @@ def build_datasets(csv_path, tokenizer, val_fraction=0.1, seed=42, sample_size=N
     train_ds = EssayScoreDataset(train_df["full_text"], train_df["label"], tokenizer)
     val_ds = EssayScoreDataset(val_df["full_text"], val_df["label"], tokenizer)
 
-    return train_ds, val_ds, test_df 
+    return train_ds, val_ds, test_df  # test_df kept as a DataFrame for fairness breakdown
 
 
-def train(csv_path, output_dir="out/marking_model", epochs=3, batch_size=4, sample_size=None):
+def train(csv_path, output_dir="out/marking_model", epochs=3, batch_size=16, sample_size=None):
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
     model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME, num_labels=NUM_SCORE_LEVELS)
 
     train_ds, val_ds, test_df = build_datasets(csv_path, tokenizer, sample_size=sample_size)
     print(f"Train size: {len(train_ds)}, Val size: {len(val_ds)}, Held-out test size: {len(test_df)}")
+    print(f"Train label distribution: {pd.Series(train_ds.labels).value_counts().sort_index().to_dict()}")
 
     args = TrainingArguments(
         output_dir=output_dir,
@@ -91,8 +94,11 @@ def train(csv_path, output_dir="out/marking_model", epochs=3, batch_size=4, samp
         load_best_model_at_end=True,
         metric_for_best_model="qwk",
         logging_steps=50,
-        dataloader_num_workers=0, 
-        dataloader_pin_memory=False,
+        dataloader_num_workers=0,  
+        dataloader_pin_memory=False,  
+        learning_rate=2e-5,   
+        warmup_ratio=0.1,    
+        weight_decay=0.01,
     )
 
     trainer = Trainer(
@@ -123,7 +129,7 @@ def fairness_breakdown(trainer, test_df, tokenizer):
         print(f"\nBy {col}:")
         for group_val, group_df in test_df.groupby(col, dropna=True):
             if len(group_df) < 10:
-                continue 
+                continue  
             qwk = cohen_kappa_score(group_df["true_label"], group_df["pred_label"], weights="quadratic")
             print(f"  {group_val!r}: n={len(group_df)}, QWK={qwk:.3f}")
 
@@ -145,6 +151,7 @@ def evaluate(csv_path, checkpoint_dir):
 
 
 def predict_score(essay_text: str, checkpoint_dir: str) -> int:
+    """Predict a holistic score (1-6) for a single essay. Used by feedback.py."""
     tokenizer = AutoTokenizer.from_pretrained(checkpoint_dir)
     model = AutoModelForSequenceClassification.from_pretrained(checkpoint_dir)
     model.eval()
@@ -152,7 +159,7 @@ def predict_score(essay_text: str, checkpoint_dir: str) -> int:
     with torch.no_grad():
         logits = model(**inputs).logits
     pred_label = torch.argmax(logits, dim=1).item()
-    return pred_label + 1  # back to 1-6 scale
+    return pred_label + 1  
 
 
 if __name__ == "__main__":
@@ -161,7 +168,7 @@ if __name__ == "__main__":
     parser.add_argument("--mode", choices=["train", "eval"], default="train")
     parser.add_argument("--checkpoint", default="out/marking_model")
     parser.add_argument("--epochs", type=int, default=3)
-    parser.add_argument("--batch_size", type=int, default=4)
+    parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--sample_size", type=int, default=None, help="Subsample this many essays for a quick test run (e.g. 500) instead of the full ~26k")
     args = parser.parse_args()
 

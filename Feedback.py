@@ -15,7 +15,6 @@ SCORE_BAND_DESCRIPTIONS = {
 LOCAL_MODEL_NAME = "microsoft/Phi-3-mini-4k-instruct"  
 _model_cache = {}  
 
-
 def _get_local_model():
     if "model" not in _model_cache:
         print(f"Loading local model {LOCAL_MODEL_NAME} (first call only, may take a minute)...")
@@ -58,7 +57,6 @@ def retrieve_exemplars(meta_data_root: str, essays_root: str, k: int = 2, seed: 
     sample = df.sample(n=min(k, len(df)), random_state=seed)
     return list(zip(sample["draft1_text"], sample["expert_feedback"]))
 
-
 # Condition 1: grounded feedback 
 
 def grounded_feedback(essay_text: str, checkpoint_dir: str, meta_data_root: str, essays_root: str) -> str:
@@ -90,7 +88,6 @@ Requirements:
 
 # Condition 2: raw LLM baseline
 
-
 def raw_llm_feedback(essay_text: str) -> str:
     prompt = f"""You are giving formative feedback to a student on their persuasive essay.
 
@@ -102,8 +99,7 @@ Write feedback for the student. Be specific and actionable. Keep it to 4-6 sente
     return call_llm(prompt)
 
 
-# Condition 3: template baseline (score-band-keyed, Criterion-style)
-
+# Condition 3: template baseline 
 
 TEMPLATE_COMMENTS = {
     1: "This essay needs significant development. Make sure you clearly state your position and support it with at least one piece of evidence.",
