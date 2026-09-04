@@ -15,7 +15,6 @@ SCORE_BAND_DESCRIPTIONS = {
 LOCAL_MODEL_NAME = "microsoft/Phi-3-mini-4k-instruct"  
 _model_cache = {}  
 
-
 def _get_local_model():
     if "model" not in _model_cache:
         print(f"Loading local model {LOCAL_MODEL_NAME} (first call only, may take a minute)...")
@@ -61,7 +60,8 @@ def retrieve_exemplars(meta_data_root: str, essays_root: str, k: int = 2, seed: 
     sample = df.sample(n=min(k, len(df)), random_state=seed)
     return list(zip(sample["draft1_text"], sample["expert_feedback"]))
 
-# Condition 1: grounded feedback 
+
+# Condition 1: grounded feedback (score + exemplars)
 
 def grounded_feedback(essay_text: str, checkpoint_dir: str, meta_data_root: str, essays_root: str) -> str:
     predicted_score = predict_score(essay_text, checkpoint_dir)
@@ -86,9 +86,11 @@ Now write feedback for this essay, in a comparable style and level of specificit
 Requirements:
 - Reference specific content from the essay (a particular claim, piece of evidence, or argument move), not generic praise.
 - Keep in mind the essay's overall score band ({band}) when calibrating how much and what kind of feedback to give.
+- Do NOT copy sentences, phrases, or boilerplate wording from the examples above (e.g. do not write "thank you for your participation" or similar study-specific language) -- the examples are only a guide to tone and specificity, not text to reuse. Write entirely original wording about THIS essay.
 - Keep the feedback to 4-6 sentences.
 """
     return call_llm(prompt)
+
 
 # Condition 2: raw LLM baseline
 
@@ -104,7 +106,7 @@ Write feedback for the student. Be specific and actionable. Keep it to 4-6 sente
     return call_llm(prompt)
 
 
-# Condition 3: template baseline 
+# Condition 3: template baseline (score-band-keyed, Criterion-style)
 
 TEMPLATE_COMMENTS = {
     1: "This essay needs significant development. Make sure you clearly state your position and support it with at least one piece of evidence.",
