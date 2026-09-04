@@ -14,10 +14,9 @@ from transformers import (
 
 from Data import load_persuade
 
-MODEL_NAME = "roberta-base"  
-NUM_SCORE_LEVELS = 6  
+MODEL_NAME = "roberta-base" 
+NUM_SCORE_LEVELS = 6 
 DEMOGRAPHIC_COLUMNS = ["gender", "ell_status", "race_ethnicity", "economically_disadvantaged", "student_disability_status"]
-
 HELD_OUT_TEST_PROMPTS = [
     "Seeking multiple opinions",
     "Community service",
@@ -65,7 +64,7 @@ def build_datasets(csv_path, tokenizer, val_fraction=0.1, seed=42, sample_size=N
     test_df = df[df["prompt_name"].isin(HELD_OUT_TEST_PROMPTS)].copy()
     trainval_df = df[~df["prompt_name"].isin(HELD_OUT_TEST_PROMPTS)].copy()
 
-    trainval_df = trainval_df.sample(frac=1, random_state=seed) 
+    trainval_df = trainval_df.sample(frac=1, random_state=seed)  
     n_val = int(len(trainval_df) * val_fraction)
     val_df = trainval_df.iloc[:n_val]
     train_df = trainval_df.iloc[n_val:]
@@ -73,7 +72,7 @@ def build_datasets(csv_path, tokenizer, val_fraction=0.1, seed=42, sample_size=N
     train_ds = EssayScoreDataset(train_df["full_text"], train_df["label"], tokenizer)
     val_ds = EssayScoreDataset(val_df["full_text"], val_df["label"], tokenizer)
 
-    return train_ds, val_ds, test_df  
+    return train_ds, val_ds, test_df 
 
 
 def train(csv_path, output_dir="out/marking_model", epochs=3, batch_size=16, sample_size=None):
@@ -97,7 +96,7 @@ def train(csv_path, output_dir="out/marking_model", epochs=3, batch_size=16, sam
         dataloader_num_workers=0,  
         dataloader_pin_memory=False,  
         learning_rate=2e-5,   
-        warmup_step=0.1,      
+        warmup_steps=0.1,     
         weight_decay=0.01,
     )
 
@@ -118,6 +117,9 @@ def train(csv_path, output_dir="out/marking_model", epochs=3, batch_size=16, sam
 
 
 def fairness_breakdown(trainer, test_df, tokenizer):
+    """Report QWK separately for each demographic subgroup on the test set,
+    per your methodology's fairness evaluation plan.
+    """
     preds = trainer.predict(EssayScoreDataset(test_df["full_text"], test_df["holistic_essay_score"] - 1, tokenizer))
     pred_labels = np.argmax(preds.predictions, axis=1)
     test_df = test_df.copy()
@@ -129,7 +131,7 @@ def fairness_breakdown(trainer, test_df, tokenizer):
         print(f"\nBy {col}:")
         for group_val, group_df in test_df.groupby(col, dropna=True):
             if len(group_df) < 10:
-                continue  
+                continue 
             qwk = cohen_kappa_score(group_df["true_label"], group_df["pred_label"], weights="quadratic")
             print(f"  {group_val!r}: n={len(group_df)}, QWK={qwk:.3f}")
 
