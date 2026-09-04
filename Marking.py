@@ -65,7 +65,7 @@ def build_datasets(csv_path, tokenizer, val_fraction=0.1, seed=42, sample_size=N
     test_df = df[df["prompt_name"].isin(HELD_OUT_TEST_PROMPTS)].copy()
     trainval_df = df[~df["prompt_name"].isin(HELD_OUT_TEST_PROMPTS)].copy()
 
-    trainval_df = trainval_df.sample(frac=1, random_state=seed)  # shuffle
+    trainval_df = trainval_df.sample(frac=1, random_state=seed) 
     n_val = int(len(trainval_df) * val_fraction)
     val_df = trainval_df.iloc[:n_val]
     train_df = trainval_df.iloc[n_val:]
@@ -73,7 +73,7 @@ def build_datasets(csv_path, tokenizer, val_fraction=0.1, seed=42, sample_size=N
     train_ds = EssayScoreDataset(train_df["full_text"], train_df["label"], tokenizer)
     val_ds = EssayScoreDataset(val_df["full_text"], val_df["label"], tokenizer)
 
-    return train_ds, val_ds, test_df  # test_df kept as a DataFrame for fairness breakdown
+    return train_ds, val_ds, test_df  
 
 
 def train(csv_path, output_dir="out/marking_model", epochs=3, batch_size=16, sample_size=None):
@@ -97,7 +97,7 @@ def train(csv_path, output_dir="out/marking_model", epochs=3, batch_size=16, sam
         dataloader_num_workers=0,  
         dataloader_pin_memory=False,  
         learning_rate=2e-5,   
-        warmup_ratio=0.1,    
+        warmup_step=0.1,      
         weight_decay=0.01,
     )
 
@@ -151,7 +151,6 @@ def evaluate(csv_path, checkpoint_dir):
 
 
 def predict_score(essay_text: str, checkpoint_dir: str) -> int:
-    """Predict a holistic score (1-6) for a single essay. Used by feedback.py."""
     tokenizer = AutoTokenizer.from_pretrained(checkpoint_dir)
     model = AutoModelForSequenceClassification.from_pretrained(checkpoint_dir)
     model.eval()
@@ -159,7 +158,7 @@ def predict_score(essay_text: str, checkpoint_dir: str) -> int:
     with torch.no_grad():
         logits = model(**inputs).logits
     pred_label = torch.argmax(logits, dim=1).item()
-    return pred_label + 1  
+    return pred_label + 1  # back to 1-6 scale
 
 
 if __name__ == "__main__":
